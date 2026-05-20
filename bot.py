@@ -1,14 +1,6 @@
 # -*- coding: utf-8 -*-
-"""
-bot.py  —  Markʼetingayin Hagordaktsutʼyunner Quiz Bot
-=======================================================
-Gortarkoum:   python bot.py
-Pahanj:       .env failoum  BOT_TOKEN=your_token_here
-"""
-
 import os, logging, sqlite3
 from datetime import datetime
-
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
@@ -16,14 +8,9 @@ from telegram.ext import (
 )
 from questions import ALL_QUESTIONS, LECTURES
 
-# ── Logging ────────────────────────────────────────────────────────────────
-logging.basicConfig(
-    format="%(asctime)s | %(levelname)-8s | %(message)s",
-    level=logging.INFO,
-)
+logging.basicConfig(format="%(asctime)s | %(levelname)-8s | %(message)s", level=logging.INFO)
 log = logging.getLogger(__name__)
 
-# ── Database ───────────────────────────────────────────────────────────────
 DB = "quiz.db"
 
 def db():
@@ -62,32 +49,26 @@ def answered_count(sid):
             "SELECT COUNT(*) FROM answers WHERE session_id=?", (sid,)
         ).fetchone()[0]
 
-# ── Helpers ────────────────────────────────────────────────────────────────
 TOTAL = len(ALL_QUESTIONS)
 LT = ["A", "B", "C", "D"]
 
-def esc(t: str) -> str:
-    for ch in r"\_*[]()~`>#+-=|{}.!":
-        t = t.replace(ch, f"\\{ch}")
-    return t
-
-def grade(pct):
-    if pct >= 90: return "Grandz"
-    if pct >= 75: return "Lav"
-    if pct >= 55: return "Bavarar"
-    return "Voch bav."
-
 def bar(done, total, w=10):
     f = int(done / total * w)
-    return "+" * f + "-" * (w - f)
+    return "[" + "#" * f + "-" * (w - f) + "]"
+
+def grade(pct):
+    if pct >= 90: return "Grandz (90%+)"
+    if pct >= 75: return "Lav (75%+)"
+    if pct >= 55: return "Bavarar (55%+)"
+    return "Voch bavarar"
 
 def q_text(qi):
     q = ALL_QUESTIONS[qi]
     return (
-        f"*Lekcija: {esc(q['lecture'])}*\n"
-        f"{'=' * 20}\n"
-        f"*Harts {qi+1}/{TOTAL}*\n\n"
-        f"{esc(q['q'])}"
+        f"Lekcija: {q['lecture']}\n"
+        f"{'─' * 30}\n"
+        f"Harts {qi+1}/{TOTAL}\n\n"
+        f"{q['q']}"
     )
 
 def q_keyboard(qi):
@@ -97,7 +78,6 @@ def q_keyboard(qi):
         for i, opt in enumerate(q["opts"])
     ])
 
-# ── /start ─────────────────────────────────────────────────────────────────
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
     with db() as c:
@@ -105,43 +85,34 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "INSERT OR REPLACE INTO users VALUES(?,?,?,?)",
             (u.id, u.username or "", u.full_name or "", datetime.now().isoformat())
         )
-
     sess = active_session(u.id)
-    name = esc(u.full_name or "Usanoghy")
-
+    name = u.full_name or "Usanoghy"
     if sess:
         done = answered_count(sess["id"])
         if done < TOTAL:
             await update.message.reply_text(
-                f"Bari veradarts, *{name}*\\!\n\n"
-                f"Duq ounеq ankatarats tеst\\.\n"
-                f"`{bar(done, TOTAL)}` *{done}/{TOTAL}* hartsadarvats",
-                parse_mode="MarkdownV2",
+                f"Bari veradarts, {name}!\n\n"
+                f"Duq ouneq chkatarats test.\n"
+                f"{bar(done, TOTAL)} {done}/{TOTAL} hartsadarvats",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("Sharounakel", callback_data="cont")],
                     [InlineKeyboardButton("Sksel norits", callback_data="restart")],
                 ])
             )
             return
-
-    await welcome(update, name)
-
-async def welcome(upd, name):
-    await upd.message.reply_text(
-        f"Bari galust, *{name}*\\!\n\n"
-        f"*Markʼetingayin Hagordaktsutʼyunner*\n"
-        f"{'=' * 22}\n"
-        f"6 lekcija · *60 harts* · 4 tarberак\n\n"
-        f"Amen hartsi depqoum karandaiq ardzagunte\\.\n"
-        f"Verjoum kkstanaq amboghjatsuma gnahahatakan\\.\n\n"
-        f"Patrastа՞k eq\\?",
-        parse_mode="MarkdownV2",
+    await update.message.reply_text(
+        f"Bari galust, {name}!\n\n"
+        f"Markʼetingayin Hagordaktsutʼyunner\n"
+        f"{'─' * 30}\n"
+        f"6 lekcija · 60 harts · 4 tarberак\n\n"
+        f"Amen hartsi depqoum karandaiq ardzagunte.\n"
+        f"Verjoum kkstanaq gnahahatakan.\n\n"
+        f"Patrastak eq?",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("Sksel Teste", callback_data="begin")]
         ])
     )
 
-# ── Callbacks ──────────────────────────────────────────────────────────────
 async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     await q.answer()
@@ -150,13 +121,11 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if d == "begin":
         await new_session(q, uid)
-
     elif d == "cont":
         s = active_session(uid)
         if s:
             qi = answered_count(s["id"])
             await send_q(q, qi, s["id"])
-
     elif d == "restart":
         with db() as c:
             c.execute(
@@ -164,11 +133,9 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 (datetime.now().isoformat(), uid)
             )
         await new_session(q, uid)
-
     elif d.startswith("a:"):
         _, qi_s, ch_s = d.split(":")
         await on_answer(q, uid, int(qi_s), int(ch_s))
-
     elif d == "next":
         s = active_session(uid)
         if not s:
@@ -178,7 +145,6 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await show_results(q, uid, s["id"])
         else:
             await send_q(q, qi, s["id"])
-
     elif d == "results":
         s = active_session(uid)
         if not s:
@@ -188,7 +154,6 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     (uid,)).fetchone()
         if s:
             await show_results(q, uid, s["id"])
-
     elif d == "retry":
         with db() as c:
             c.execute(
@@ -205,9 +170,7 @@ async def new_session(q, uid):
     await send_q(q, 0, sid)
 
 async def send_q(q, qi, sid):
-    await q.edit_message_text(
-        q_text(qi), parse_mode="MarkdownV2", reply_markup=q_keyboard(qi)
-    )
+    await q.edit_message_text(q_text(qi), reply_markup=q_keyboard(qi))
 
 async def on_answer(q, uid, qi, chosen):
     s = active_session(uid)
@@ -215,8 +178,6 @@ async def on_answer(q, uid, qi, chosen):
         await q.edit_message_text("Niste chi gtнvel: /start")
         return
     sid = s["id"]
-
-    # already answered?
     with db() as c:
         if c.execute(
             "SELECT 1 FROM answers WHERE session_id=? AND q_index=?", (sid, qi)
@@ -240,10 +201,11 @@ async def on_answer(q, uid, qi, chosen):
         if ok:
             c.execute("UPDATE sessions SET score=score+1 WHERE id=?", (sid,))
 
-    icon = "CHTOR" if ok else "SKHАL"
     next_qi = qi + 1
-
-    lines = [f"*{'Chtor e!' if ok else 'Skhаl!'}* {'(+1)' if ok else ''}",  ""]
+    lines = [
+        "CHTOR E! (+1 miavor)" if ok else "SKHАL!",
+        "",
+    ]
     for i, opt in enumerate(qdata["opts"]):
         if i == correct:
             pfx = "[V]"
@@ -251,19 +213,18 @@ async def on_answer(q, uid, qi, chosen):
             pfx = "[X]"
         else:
             pfx = "   "
-        lines.append(f"`{pfx}` {LT[i]}\\) {esc(opt)}")
+        lines.append(f"{pfx} {LT[i]}) {opt}")
 
     if not ok:
-        lines.append(f"\nChtort pataskhane: *{LT[correct]}\\) {esc(qdata['opts'][correct])}*")
+        lines.append(f"\nChtort pataskhane: {LT[correct]}) {qdata['opts'][correct]}")
 
-    lines.append(f"\n`{bar(next_qi, TOTAL)}` *{next_qi}/{TOTAL}*")
+    lines.append(f"\n{bar(next_qi, TOTAL)} {next_qi}/{TOTAL}")
 
     btn = ("Tesnel ardyunkner", "results") if next_qi >= TOTAL else \
           (f"Hajord harts ({next_qi+1}/{TOTAL})", "next")
 
     await q.edit_message_text(
         "\n".join(lines),
-        parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton(btn[0], callback_data=btn[1])]
         ])
@@ -282,63 +243,58 @@ async def show_results(q, uid, sid):
 
     score = s["score"]
     pct = round(score / TOTAL * 100)
-    g = grade(pct)
 
-    # per-lecture stats
-    lec_data = {}
+    lec_stats = {}
     for lec in LECTURES:
-        lec_data[lec["title"]] = [0, lec["count"]]
+        lec_stats[lec["title"]] = [0, lec["count"]]
 
     for r in rows:
         lec_title = ALL_QUESTIONS[r["q_index"]]["lecture"]
-        # map to LECTURES key (match substring)
-        for lt in lec_data:
+        for lt in lec_stats:
             if lt in lec_title or lec_title in lt:
                 if r["is_correct"]:
-                    lec_data[lt][0] += 1
+                    lec_stats[lt][0] += 1
                 break
 
     lines = [
-        "*Test avaртvats e\\!*",
-        f"{'=' * 22}",
-        f"Yndhanour ardyunk",
-        f"Chtor: *{score}/{TOTAL}* \\({pct}%\\)",
-        f"Gnahatakan: *{esc(g)}*",
-        f"{'=' * 22}",
-        "*Yst lekcijaner*", "",
+        "TEST AVARTVATС E!",
+        "─" * 30,
+        f"Yndhanour ardyunk: {score}/{TOTAL} ({pct}%)",
+        f"Gnahatakan: {grade(pct)}",
+        "─" * 30,
+        "Yst lekcijaner:",
+        "",
     ]
 
-    for lt, (c_ok, c_tot) in lec_data.items():
+    for lt, (c_ok, c_tot) in lec_stats.items():
         p = round(c_ok / c_tot * 100) if c_tot else 0
         short = lt.split("—")[-1].strip() if "—" in lt else lt
-        lines.append(f"*{esc(short)}*")
-        lines.append(f"`{bar(c_ok, c_tot)}` {c_ok}/{c_tot} \\({p}%\\)")
+        lines.append(f"{short}")
+        lines.append(f"{bar(c_ok, c_tot)} {c_ok}/{c_tot} ({p}%)")
         lines.append("")
 
-    lines.append(f"{'=' * 22}")
+    lines.append("─" * 30)
     if pct >= 90:
-        lines.append("Fantastik ardyunk\\!")
+        lines.append("Fantastik ardyunk!")
     elif pct >= 75:
-        lines.append("Lav ardyunk\\! Nyuty himnakanоum tirapеtum e\\.")
+        lines.append("Lav ardyunk! Nyuty himnakanоum tirapetum e.")
     elif pct >= 55:
-        lines.append("Bavar\\. — Vor temanerе krknel е pеtk\\.")
+        lines.append("Bavar. Vor temanerе krknel e petk.")
     else:
-        lines.append("Voch bav\\. — Lekcijаnerе krknelay аnhrаjhеsht е\\.")
+        lines.append("Voch bav. Lekcijanerе krknelay anhrаjhesht e.")
 
     await q.edit_message_text(
         "\n".join(lines),
-        parse_mode="MarkdownV2",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("Krkni Porbel", callback_data="retry")]
         ])
     )
 
-# ── /stats  (usoutcʼhi hramane) ────────────────────────────────────────────
 async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     with db() as c:
-        users_n  = c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
-        fin_n    = c.execute("SELECT COUNT(*) FROM sessions WHERE finished=1").fetchone()[0]
-        avg_row  = c.execute(
+        users_n = c.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        fin_n   = c.execute("SELECT COUNT(*) FROM sessions WHERE finished=1").fetchone()[0]
+        avg_row = c.execute(
             "SELECT AVG(CAST(score AS REAL)/60*100) FROM sessions WHERE finished=1"
         ).fetchone()[0]
         top = c.execute("""
@@ -350,24 +306,22 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         """).fetchall()
 
     lines = [
-        "*Vichakagrutyunner*",
-        f"Grantsvaтs: *{users_n}*",
-        f"Avartats testner: *{fin_n}*",
-        f"Mittlakan ardyunk: *{round(avg_row or 0)}%*",
-        "", "*Top 10*", "",
+        "VICHAKAGRUTYUNNER",
+        f"Grantsvats usanogner: {users_n}",
+        f"Avartats testner: {fin_n}",
+        f"Mittlakan ardyunk: {round(avg_row or 0)}%",
+        "",
+        "TOP 10",
+        "",
     ]
     for i, r in enumerate(top, 1):
-        lines.append(f"{i}\\. {esc(r['full_name'])} — {r['score']}/60 \\({int(r['pct'])}%\\)")
+        lines.append(f"{i}. {r['full_name']} — {r['score']}/60 ({int(r['pct'])}%)")
 
-    await update.message.reply_text("\n".join(lines), parse_mode="MarkdownV2")
+    await update.message.reply_text("\n".join(lines))
 
-# ── Unknown text ───────────────────────────────────────────────────────────
 async def on_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "Ogtag /start hramane test surpeldу hamar.",
-    )
+    await update.message.reply_text("Ogtag /start hramane test surpeldu hamar.")
 
-# ── Main ───────────────────────────────────────────────────────────────────
 def load_token():
     t = os.environ.get("BOT_TOKEN", "").strip()
     if t:
@@ -383,19 +337,16 @@ def load_token():
 def main():
     token = load_token()
     if not token:
-        print("BOT_TOKEN chi gtнvel!")
-        print("Steghtsets .env fail  —  BOT_TOKEN=your_token_here")
+        print("BOT_TOKEN chi gtnvel!")
+        print("Steghtsets .env fail — BOT_TOKEN=your_token_here")
         return
-
     init_db()
-    log.info("DB OK  |  %d harts", TOTAL)
-
+    log.info("DB OK | %d harts", TOTAL)
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CallbackQueryHandler(on_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, on_text))
-
     log.info("Bot starting...")
     app.run_polling(drop_pending_updates=True)
 
