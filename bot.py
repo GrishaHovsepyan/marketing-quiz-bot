@@ -8,9 +8,10 @@ from datetime import datetime
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
-    MessageHandler, filters, ContextTypes,
+    ContextTypes,
 )
 
+# Ենթադրվում է, որ այս ֆայլը գոյություն ունի քո պրոյեկտում
 from questions import ALL_QUESTIONS, LECTURES
 
 logging.basicConfig(
@@ -25,7 +26,10 @@ DB = "quiz.db"
 
 # ---------------- DB ----------------
 def db():
-    return sqlite3.connect(DB, check_same_thread=False)
+    conn = sqlite3.connect(DB, check_same_thread=False)
+    # Սա թույլ է տալիս տվյալներին դիմել անուններով (օրինակ՝ row["id"]), այլ ոչ թե ինդեքսներով
+    conn.row_factory = sqlite3.Row
+    return conn
 
 
 def init_db():
@@ -73,13 +77,16 @@ def active_session(tg_id):
 
 def answered_count(sid):
     with db() as c:
-        return c.execute(
+        res = c.execute(
             "SELECT COUNT(*) FROM answers WHERE session_id=?",
             (sid,)
-        ).fetchone()[0]
+        ).fetchone()
+        return res[0] if res else 0
 
 
 def bar(done, total, w=10):
+    if total == 0:
+        return "[" + "░" * w + "]"
     f = int(done / total * w)
     return "[" + "█" * f + "░" * (w - f) + "]"
 
@@ -115,6 +122,8 @@ def q_keyboard(qi):
 # ---------------- START ----------------
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     u = update.effective_user
+    if not u:
+        return
 
     with db() as c:
         c.execute(
@@ -149,6 +158,9 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ---------------- CALLBACK ----------------
 async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
+    if not q:
+        return
+        
     await q.answer()
 
     uid = q.from_user.id
@@ -161,7 +173,10 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         s = active_session(uid)
         if s:
             qi = answered_count(s["id"])
-            await send_q(q, qi)
+            if qi < TOTAL:
+                await send_q(q, qi)
+            else:
+                await show_results(q, uid, s["id"])
 
     elif data.startswith("a:"):
         _, qi, chosen = data.split(":")
@@ -170,6 +185,12 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ---------------- SESSION ----------------
 async def new_session(q, uid):
+    # Ստուգում ենք, եթե արդեն կա ակտիվ սեսիա, հինը փակում ենք
+    s = active_session(uid)
+    if s:
+        with db() as c:
+            c.execute("UPDATE sessions SET finished=1 WHERE id=?", (s["id"],))
+
     with db() as c:
         c.execute(
             "INSERT INTO sessions(tg_id, started_at) VALUES(?,?)",
@@ -190,7 +211,7 @@ async def send_q(q, qi):
 async def on_answer(q, uid, qi, chosen):
     s = active_session(uid)
     if not s:
-        await q.edit_message_text("Session not found. /start")
+        await q.edit_message_text("Սեսիան չի գտնվել: /start")
         return
 
     sid = s["id"]
@@ -213,7 +234,6 @@ async def on_answer(q, uid, qi, chosen):
             "INSERT INTO answers(session_id,q_index,chosen,correct,is_correct) VALUES(?,?,?,?,?)",
             (sid, qi, chosen, correct, int(ok))
         )
-
         if ok:
             c.execute("UPDATE sessions SET score=score+1 WHERE id=?", (sid,))
 
@@ -234,41 +254,47 @@ async def on_answer(q, uid, qi, chosen):
         lines.append(f"{p} {LT[i]}) {opt}")
 
     if not ok:
-        lines.append(f"\nՃիշտ՝ {LT[correct]}) {qdata['opts'][correct]}")
+        lines.append(f"\nՃիշտ տարբերակը՝ {LT[correct]}) {qdata['opts'][correct]}")
 
-    await q.edit_message_text("\n".join(lines))
+    # Հեռացնում ենք inline կոճակները պատասխանը ցույց տալիս, որպեսզի կրկնակի սեղմումներ չլինեն
+    await q.edit_message_text("\n".join(lines), reply_markup=None)
 
-    # ⏳ auto next (SAFE)
+    # ⏳ Սպասում ենք 1.5 վայրկյան հաջորդ հարցին անցնելուց առաջ
     await asyncio.sleep(1.5)
 
     if next_qi >= TOTAL:
         await show_results(q, uid, sid)
     else:
-        await send_q(q, next_qi)
+        # Ստուգում ենք՝ արդյոք օգտատերը չի փակել սեսիան սպասելու ընթացքում
+        s_check = active_session(uid)
+        if s_check and s_check["id"] == sid:
+            await send_q(q, next_qi)
 
 
 # ---------------- RESULTS ----------------
 async def show_results(q, uid, sid):
-
     with db() as c:
         s = c.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
-
         c.execute(
             "UPDATE sessions SET finished=1, finished_at=? WHERE id=?",
             (datetime.now().isoformat(), sid)
         )
 
+    if not s:
+        await q.edit_message_text("Արդյունքները չեն գտնվել:")
+        return
+
     score = s["score"]
-    pct = round(score / TOTAL * 100)
+    pct = round(score / TOTAL * 100) if TOTAL > 0 else 0
 
     text = [
         "🏁 ԱՎԱՐՏ",
         "=" * 30,
-        f"Score: {score}/{TOTAL} ({pct}%)",
-        f"Grade: {grade(pct)}"
+        f"Արդյունք: {score}/{TOTAL} ({pct}%)",
+        f"Գնահատական: {grade(pct)}"
     ]
 
-    await q.edit_message_text("\n".join(text))
+    await q.edit_message_text("\n".join(text), reply_markup=None)
 
 
 # ---------------- RUN ----------------
@@ -289,6 +315,7 @@ def main():
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CallbackQueryHandler(on_callback))
 
+    print("Բոտը հաջողությամբ գործարկվեց...")
     app.run_polling(drop_pending_updates=True)
 
 
