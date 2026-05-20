@@ -66,7 +66,7 @@ def q_text(qi):
     q = ALL_QUESTIONS[qi]
     return (
         f"Lekcija: {q['lecture']}\n"
-        f"{'─' * 30}\n"
+        f"{'=' * 30}\n"
         f"Harts {qi+1}/{TOTAL}\n\n"
         f"{q['q']}"
     )
@@ -103,8 +103,8 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"Bari galust, {name}!\n\n"
         f"Markʼetingayin Hagordaktsutʼyunner\n"
-        f"{'─' * 30}\n"
-        f"6 lekcija · 60 harts · 4 tarberак\n\n"
+        f"{'=' * 30}\n"
+        f"6 lekcija | 60 harts | 4 tarberak\n\n"
         f"Amen hartsi depqoum karandaiq ardzagunte.\n"
         f"Verjoum kkstanaq gnahahatakan.\n\n"
         f"Patrastak eq?",
@@ -175,7 +175,7 @@ async def send_q(q, qi, sid):
 async def on_answer(q, uid, qi, chosen):
     s = active_session(uid)
     if not s:
-        await q.edit_message_text("Niste chi gtнvel: /start")
+        await q.edit_message_text("Niste chi gtnvel: /start")
         return
     sid = s["id"]
     with db() as c:
@@ -203,7 +203,7 @@ async def on_answer(q, uid, qi, chosen):
 
     next_qi = qi + 1
     lines = [
-        "CHTOR E! (+1 miavor)" if ok else "SKHАL!",
+        "CHTOR E! (+1 miavor)" if ok else "SKHAL!",
         "",
     ]
     for i, opt in enumerate(qdata["opts"]):
@@ -257,31 +257,31 @@ async def show_results(q, uid, sid):
                 break
 
     lines = [
-        "TEST AVARTVATС E!",
-        "─" * 30,
+        "TEST AVARTVATS E!",
+        '=' * 30,
         f"Yndhanour ardyunk: {score}/{TOTAL} ({pct}%)",
         f"Gnahatakan: {grade(pct)}",
-        "─" * 30,
+        '=' * 30,
         "Yst lekcijaner:",
         "",
     ]
 
     for lt, (c_ok, c_tot) in lec_stats.items():
         p = round(c_ok / c_tot * 100) if c_tot else 0
-        short = lt.split("—")[-1].strip() if "—" in lt else lt
+        short = lt.split("-")[-1].strip() if "-" in lt else lt
         lines.append(f"{short}")
         lines.append(f"{bar(c_ok, c_tot)} {c_ok}/{c_tot} ({p}%)")
         lines.append("")
 
-    lines.append("─" * 30)
+    lines.append('=' * 30)
     if pct >= 90:
         lines.append("Fantastik ardyunk!")
     elif pct >= 75:
-        lines.append("Lav ardyunk! Nyuty himnakanоum tirapetum e.")
+        lines.append("Lav ardyunk! Nyuty himnakanoum tirapetum e.")
     elif pct >= 55:
-        lines.append("Bavar. Vor temanerе krknel e petk.")
+        lines.append("Bavar. Vor temanere krknel e petk.")
     else:
-        lines.append("Voch bav. Lekcijanerе krknelay anhrаjhesht e.")
+        lines.append("Voch bav. Lekcijanere krknelay anhrajhesht e.")
 
     await q.edit_message_text(
         "\n".join(lines),
@@ -315,7 +315,7 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "",
     ]
     for i, r in enumerate(top, 1):
-        lines.append(f"{i}. {r['full_name']} — {r['score']}/60 ({int(r['pct'])}%)")
+        lines.append(f"{i}. {r['full_name']} - {r['score']}/60 ({int(r['pct'])}%)")
 
     await update.message.reply_text("\n".join(lines))
 
@@ -338,7 +338,7 @@ def main():
     token = load_token()
     if not token:
         print("BOT_TOKEN chi gtnvel!")
-        print("Steghtsets .env fail — BOT_TOKEN=your_token_here")
+        print("Steghtsets .env fail - BOT_TOKEN=your_token_here")
         return
     init_db()
     log.info("DB OK | %d harts", TOTAL)
