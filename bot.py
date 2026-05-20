@@ -2,6 +2,7 @@
 import os
 import logging
 import sqlite3
+import asyncio
 from datetime import datetime
 
 from telegram import (
@@ -96,10 +97,11 @@ LT = ["Ա", "Բ", "Գ", "Դ"]
 
 def bar(done, total, width=10):
     filled = int(done / total * width)
-    return "[" + "#" * filled + "-" * (width - filled) + "]"
+    return "[" + "█" * filled + "░" * (width - filled) + "]"
 
 
 def grade(percent):
+
     if percent >= 90:
         return "Գերազանց (90%+)"
 
@@ -113,17 +115,19 @@ def grade(percent):
 
 
 def q_text(qi):
+
     q = ALL_QUESTIONS[qi]
 
     return (
-        f"Լեկցիա՝ {q['lecture']}\n"
+        f"📘 Լեկցիա՝ {q['lecture']}\n"
         f"{'=' * 30}\n"
-        f"Հարց {qi + 1}/{TOTAL}\n\n"
+        f"❓ Հարց {qi + 1}/{TOTAL}\n\n"
         f"{q['q']}"
     )
 
 
 def q_keyboard(qi):
+
     q = ALL_QUESTIONS[qi]
 
     return InlineKeyboardMarkup([
@@ -160,24 +164,20 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     name = u.full_name or "Ուսանող"
 
     if sess:
+
         done = answered_count(sess["id"])
 
         if done < TOTAL:
+
             await update.message.reply_text(
-                f"Բարի վերադարձ, {name}!\n\n"
+                f"👋 Բարի վերադարձ, {name}!\n\n"
                 f"Դուք ունեք չավարտված թեստ։\n"
-                f"{bar(done, TOTAL)} {done}/{TOTAL} պատասխանված",
+                f"{bar(done, TOTAL)} {done}/{TOTAL}",
                 reply_markup=InlineKeyboardMarkup([
                     [
                         InlineKeyboardButton(
                             "Շարունակել",
                             callback_data="cont"
-                        )
-                    ],
-                    [
-                        InlineKeyboardButton(
-                            "Սկսել նորից",
-                            callback_data="restart"
                         )
                     ]
                 ])
@@ -185,17 +185,18 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
 
     await update.message.reply_text(
-        f"Բարի գալուստ, {name}!\n\n"
-        f"Մարքեթինգային հաղորդակցություններ\n"
+        f"🎓 Բարի գալուստ, {name}!\n\n"
+        f"📚 Մարքեթինգային հաղորդակցություններ\n"
         f"{'=' * 30}\n"
-        f"6 լեկցիա | 60 հարց | 4 տարբերակ\n\n"
+        f"• 6 լեկցիա\n"
+        f"• 60 հարց\n"
+        f"• 4 տարբերակ\n\n"
         f"Յուրաքանչյուր հարցի համար ընտրեք ճիշտ պատասխանը։\n"
-        f"Վերջում կստանաք գնահատական։\n\n"
-        f"Պատրա՞ստ եք",
+        f"Վերջում կստանաք արդյունքը։",
         reply_markup=InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(
-                    "Սկսել թեստը",
+                    "🚀 Սկսել թեստը",
                     callback_data="begin"
                 )
             ]
@@ -223,24 +224,6 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             qi = answered_count(s["id"])
             await send_q(q, qi)
 
-    elif data == "restart":
-
-        with db() as c:
-            c.execute(
-                """
-                UPDATE sessions
-                SET finished=1,
-                    finished_at=?
-                WHERE tg_id=? AND finished=0
-                """,
-                (
-                    datetime.now().isoformat(),
-                    uid
-                )
-            )
-
-        await new_session(q, uid)
-
     elif data.startswith("a:"):
 
         _, qi_s, chosen_s = data.split(":")
@@ -251,40 +234,6 @@ async def on_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             int(qi_s),
             int(chosen_s)
         )
-
-    elif data == "next":
-
-        s = active_session(uid)
-
-        if not s:
-            return
-
-        qi = answered_count(s["id"])
-
-        if qi >= TOTAL:
-            await show_results(q, uid, s["id"])
-        else:
-            await send_q(q, qi)
-
-    elif data == "results":
-
-        s = active_session(uid)
-
-        if not s:
-            with db() as c:
-                s = c.execute(
-                    """
-                    SELECT *
-                    FROM sessions
-                    WHERE tg_id=?
-                    ORDER BY id DESC
-                    LIMIT 1
-                    """,
-                    (uid,)
-                ).fetchone()
-
-        if s:
-            await show_results(q, uid, s["id"])
 
 
 async def new_session(q, uid):
@@ -317,9 +266,11 @@ async def on_answer(q, uid, qi, chosen):
     s = active_session(uid)
 
     if not s:
+
         await q.edit_message_text(
             "Սեսիա չի գտնվել։ Օգտագործեք /start"
         )
+
         return
 
     sid = s["id"]
@@ -336,14 +287,6 @@ async def on_answer(q, uid, qi, chosen):
         ).fetchone()
 
         if exists:
-
-            qi2 = answered_count(sid)
-
-            if qi2 >= TOTAL:
-                await show_results(q, uid, sid)
-            else:
-                await send_q(q, qi2)
-
             return
 
     qdata = ALL_QUESTIONS[qi]
@@ -383,52 +326,44 @@ async def on_answer(q, uid, qi, chosen):
     next_qi = qi + 1
 
     lines = [
-        "ՃԻՇՏ Է! (+1 միավոր)" if ok else "ՍԽԱԼ!",
+        "✅ ՃԻՇՏ ՊԱՏԱՍԽԱՆ" if ok else "❌ ՍԽԱԼ ՊԱՏԱՍԽԱՆ",
         "",
     ]
 
     for i, opt in enumerate(qdata["opts"]):
 
         if i == correct:
-            prefix = "[✓]"
+            prefix = "✅"
 
         elif i == chosen and not ok:
-            prefix = "[✗]"
+            prefix = "❌"
 
         else:
-            prefix = "   "
+            prefix = "▫️"
 
         lines.append(f"{prefix} {LT[i]}) {opt}")
 
     if not ok:
+        lines.append("")
         lines.append(
-            f"\nՃիշտ պատասխանը՝ "
+            f"Ճիշտ պատասխան՝ "
             f"{LT[correct]}) "
             f"{qdata['opts'][correct]}"
         )
 
-    lines.append(
-        f"\n{bar(next_qi, TOTAL)} {next_qi}/{TOTAL}"
-    )
-
-    button = (
-        ("Տեսնել արդյունքները", "results")
-        if next_qi >= TOTAL
-        else
-        (f"Հաջորդ հարց ({next_qi + 1}/{TOTAL})", "next")
-    )
+    lines.append("")
+    lines.append(f"{bar(next_qi, TOTAL)} {next_qi}/{TOTAL}")
 
     await q.edit_message_text(
-        "\n".join(lines),
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(
-                    button[0],
-                    callback_data=button[1]
-                )
-            ]
-        ])
+        "\n".join(lines)
     )
+
+    await asyncio.sleep(2)
+
+    if next_qi >= TOTAL:
+        await show_results(q, uid, sid)
+    else:
+        await send_q(q, next_qi)
 
 
 async def show_results(q, uid, sid):
@@ -485,12 +420,12 @@ async def show_results(q, uid, sid):
                 break
 
     lines = [
-        "ԹԵՍՏԸ ԱՎԱՐՏՎԱԾ Է!",
+        "🏁 ԹԵՍՏԸ ԱՎԱՐՏՎԱԾ Է",
         "=" * 30,
-        f"Ընդհանուր արդյունք՝ {score}/{TOTAL} ({percent}%)",
-        f"Գնահատական՝ {grade(percent)}",
+        f"🎯 Արդյունք՝ {score}/{TOTAL} ({percent}%)",
+        f"📊 Գնահատական՝ {grade(percent)}",
         "=" * 30,
-        "Արդյունքներ ըստ լեկցիաների",
+        "📚 Արդյունքներ ըստ լեկցիաների",
         "",
     ]
 
@@ -504,7 +439,7 @@ async def show_results(q, uid, sid):
             else lt
         )
 
-        lines.append(short)
+        lines.append(f"📌 {short}")
         lines.append(
             f"{bar(ok_count, total_count)} "
             f"{ok_count}/{total_count} ({p}%)"
@@ -514,24 +449,27 @@ async def show_results(q, uid, sid):
     lines.append("=" * 30)
 
     if percent >= 90:
-        lines.append("Ֆանտաստիկ արդյունք!")
+
+        lines.append("🔥 Ֆանտաստիկ արդյունք!")
 
     elif percent >= 75:
+
         lines.append(
-            "Լավ արդյունք։ "
+            "👏 Լավ արդյունք։ "
             "Նյութին հիմնականում տիրապետում եք։"
         )
 
     elif percent >= 55:
+
         lines.append(
-            "Բավարար արդյունք։ "
+            "👍 Բավարար արդյունք։ "
             "Որոշ թեմաներ կրկնելու կարիք կա։"
         )
 
     else:
+
         lines.append(
-            "Անբավարար արդյունք։ "
-            "Խորհուրդ է տրվում կրկնել լեկցիաները։"
+            "📖 Խորհուրդ է տրվում կրկնել լեկցիաները։"
         )
 
     await q.edit_message_text(
@@ -577,18 +515,20 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         """).fetchall()
 
     lines = [
-        "ՎԻՃԱԿԱԳՐՈՒԹՅՈՒՆ",
-        f"Գրանցված ուսանողներ՝ {users_n}",
-        f"Ավարտված թեստեր՝ {fin_n}",
-        f"Միջին արդյունք՝ {round(avg_row or 0)}%",
+        "📈 ՎԻՃԱԿԱԳՐՈՒԹՅՈՒՆ",
         "",
-        "ԹՈՓ 10",
+        f"👥 Գրանցված ուսանողներ՝ {users_n}",
+        f"✅ Ավարտված թեստեր՝ {fin_n}",
+        f"📊 Միջին արդյունք՝ {round(avg_row or 0)}%",
+        "",
+        "🏆 ԹՈՓ 10",
         "",
     ]
 
     for i, r in enumerate(top, 1):
+
         lines.append(
-            f"{i}. {r['full_name']} - "
+            f"{i}. {r['full_name']} — "
             f"{r['score']}/60 "
             f"({int(r['pct'])}%)"
         )
