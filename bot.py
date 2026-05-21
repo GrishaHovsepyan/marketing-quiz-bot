@@ -10,7 +10,7 @@ logging.basicConfig(format="%(asctime)s %(levelname)s %(message)s", level=loggin
 log = logging.getLogger(__name__)
 DB = "quiz.db"
 TOTAL = len(ALL_QUESTIONS)
-LT = ["A", "B", "C", "D"]
+LT = ["Ա", "Բ", "Գ", "Դ"]
 TIME_LIMIT_MINUTES = 65
 
 def get_db():
@@ -22,30 +22,18 @@ def init_db():
     with get_db() as c:
         c.executescript("""
         CREATE TABLE IF NOT EXISTS users(
-            tg_id INTEGER PRIMARY KEY,
-            username TEXT,
-            full_name TEXT,
-            registered_at TEXT
+            tg_id INTEGER PRIMARY KEY, username TEXT, full_name TEXT, registered_at TEXT
         );
         CREATE TABLE IF NOT EXISTS sessions(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            tg_id INTEGER,
-            started_at TEXT,
-            finished_at TEXT,
-            score INTEGER DEFAULT 0,
-            finished INTEGER DEFAULT 0,
-            timed_out INTEGER DEFAULT 0
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tg_id INTEGER,
+            started_at TEXT, finished_at TEXT,
+            score INTEGER DEFAULT 0, finished INTEGER DEFAULT 0, timed_out INTEGER DEFAULT 0
         );
         CREATE TABLE IF NOT EXISTS answers(
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            session_id INTEGER,
-            q_index INTEGER,
-            chosen INTEGER,
-            correct INTEGER,
-            is_correct INTEGER
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id INTEGER,
+            q_index INTEGER, chosen INTEGER, correct INTEGER, is_correct INTEGER
         );
         """)
-    # Add timed_out column if not exists (for existing DBs)
     try:
         with get_db() as c:
             c.execute("ALTER TABLE sessions ADD COLUMN timed_out INTEGER DEFAULT 0")
@@ -55,22 +43,18 @@ def init_db():
 def active_session(tg_id):
     with get_db() as c:
         return c.execute(
-            "SELECT * FROM sessions WHERE tg_id=? AND finished=0 ORDER BY id DESC LIMIT 1",
-            (tg_id,)
+            "SELECT * FROM sessions WHERE tg_id=? AND finished=0 ORDER BY id DESC LIMIT 1", (tg_id,)
         ).fetchone()
 
 def finished_session(tg_id):
     with get_db() as c:
         return c.execute(
-            "SELECT * FROM sessions WHERE tg_id=? AND finished=1 ORDER BY id DESC LIMIT 1",
-            (tg_id,)
+            "SELECT * FROM sessions WHERE tg_id=? AND finished=1 ORDER BY id DESC LIMIT 1", (tg_id,)
         ).fetchone()
 
 def answered_count(sid):
     with get_db() as c:
-        return c.execute(
-            "SELECT COUNT(*) FROM answers WHERE session_id=?", (sid,)
-        ).fetchone()[0]
+        return c.execute("SELECT COUNT(*) FROM answers WHERE session_id=?", (sid,)).fetchone()[0]
 
 def is_timed_out(session):
     if not session or not session["started_at"]:
@@ -92,13 +76,13 @@ def progress_bar(done, total):
 
 def grade_text(pct):
     if pct >= 90:
-        return "5 (Grandz)"
+        return "5 (Գերազանց)"
     elif pct >= 75:
-        return "4 (Lav)"
+        return "4 (Լավ)"
     elif pct >= 55:
-        return "3 (Bavarar)"
+        return "3 (Բավարար)"
     else:
-        return "2 (Voch bavarar)"
+        return "2 (Ոչ բավարար)"
 
 def make_question_text(qi, session):
     q = ALL_QUESTIONS[qi]
@@ -107,7 +91,7 @@ def make_question_text(qi, session):
     text = q["lecture"] + "\n"
     text += "--------------------------------\n"
     text += str(qi + 1) + "/" + str(TOTAL)
-    text += "  |  Mnatsum e: " + str(mins) + ":" + str(secs).zfill(2) + "\n\n"
+    text += "  |  Մնում է: " + str(mins) + ":" + str(secs).zfill(2) + "\n\n"
     text += q["q"]
     return text
 
@@ -119,84 +103,85 @@ def make_question_keyboard(qi):
         buttons.append([InlineKeyboardButton(label, callback_data="a:" + str(qi) + ":" + str(i))])
     return InlineKeyboardMarkup(buttons)
 
-# Store waiting-for-name users: {tg_id: True}
 waiting_for_name = {}
 
 async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     tg_id = user.id
 
-    # Check already finished
     done_sess = finished_session(tg_id)
     if done_sess:
         score = done_sess["score"]
         pct = round(score / TOTAL * 100)
-        name = done_sess["timed_out"] and "timeout" or ""
         with get_db() as c:
             u = c.execute("SELECT full_name FROM users WHERE tg_id=?", (tg_id,)).fetchone()
         uname = u["full_name"] if u else ""
-        text = uname + ", duq ardеn hanjnel eq ays teste.\n\n"
-        text += "Zer ardyounke: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
-        text += "Gnahatakan: " + grade_text(pct) + "\n\n"
-        text += "Teste kareli e hanjnel miain mek angam."
-        await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Ardyunknery tesnel", callback_data="show_all_results")]
-        ]))
+        await update.message.reply_text(
+            uname + ", դուք արդեն հանձնել եք այս թեստը:\n\n"
+            "Ձեր արդյունքը: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
+            "Գնահատական: " + grade_text(pct) + "\n\n"
+            "Թեստը կարելի է հանձնել միայն մեկ անգամ:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("Բոլոր արդյունքները", callback_data="show_all_results")]
+            ])
+        )
         return
 
-    # Check active session
     sess = active_session(tg_id)
     if sess:
         if is_timed_out(sess):
-            # Force finish
             with get_db() as c:
                 c.execute(
                     "UPDATE sessions SET finished=1, timed_out=1, finished_at=? WHERE id=?",
                     (datetime.now().isoformat(), sess["id"])
                 )
             await update.message.reply_text(
-                "Zhamanakamidzum e avartvatс. Teste avtomatik kerpov avartvatс e.\n\n"
-                "/start - tesnel ardyunky"
+                "Ժամանակը լրացել է:\n\nՃest avtomatik kerpov avartvel e.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Արդյունքները տեսնել", callback_data="show_all_results")]
+                ])
             )
             return
         done = answered_count(sess["id"])
         if done < TOTAL:
             mins = time_remaining(sess) // 60
-            text = "Bari veradarts!\n\n"
-            text += "Duk ouneq chkatarats test.\n"
-            text += progress_bar(done, TOTAL) + " " + str(done) + "/" + str(TOTAL) + "\n"
-            text += "Mnatsum e: " + str(mins) + " rope"
-            await update.message.reply_text(text, reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Sharounakel", callback_data="cont")],
-            ]))
+            await update.message.reply_text(
+                "Բarи veradarts!\n\n"
+                "Анаvarт test:\n"
+                + progress_bar(done, TOTAL) + " " + str(done) + "/" + str(TOTAL) + "\n"
+                "Մнum e: " + str(mins) + " rope",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("Шаруnakel", callback_data="cont")],
+                ])
+            )
             return
 
-    # Ask for name
     waiting_for_name[tg_id] = True
     await update.message.reply_text(
-        "Bari galust!\n\n"
-        "Marketingayin Hagordaktsutyan Test\n"
+        "Բарi galust!\n\n"
+        "Маркетingayin Hagordaktsutyan Test\n"
         "--------------------------------\n"
         "6 lekcija | 60 harts | " + str(TIME_LIMIT_MINUTES) + " rope\n\n"
-        "Sksel nakhord, kgrel dzez anoun ev azganoun (orinakе: Ani Petrosyan):"
+        "Ushаdrutyun: Teste kareli e hanjnel MIAIN MEK ANGAM\n\n"
+        "Skselу naхord, kgrel Dzez anoun ev azganoun\n"
+        "(orinak: Ani Petrosyan):"
     )
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     tg_id = user.id
-    text = update.message.text.strip()
+    text_in = update.message.text.strip()
 
     if tg_id in waiting_for_name:
-        # Validate name (at least 2 words)
-        parts = text.split()
+        parts = text_in.split()
         if len(parts) < 2:
             await update.message.reply_text(
-                "Khndrum enk grel dzez ANE anoun EV azganoun.\n"
-                "Orinakе: Ani Petrosyan"
+                "Khndrоum enk grel ANOUN EV AZGANOUN:\n"
+                "Orinak: Ani Petrosyan"
             )
             return
 
-        full_name = text
+        full_name = text_in
         with get_db() as c:
             c.execute(
                 "INSERT OR REPLACE INTO users VALUES(?,?,?,?)",
@@ -206,18 +191,18 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         await update.message.reply_text(
             "Shnorhakalutyun, " + full_name + "!\n\n"
-            "Uzhadrutyun:\n"
-            "- Teste kareli e hanjnel MIAIN MEK ANGAM\n"
+            "Ushadrutyun:\n"
+            "- Teste kareli e hanjnel miain mek angam\n"
             "- Dzez kta " + str(TIME_LIMIT_MINUTES) + " rope\n"
-            "- Zamanakamidzum avartvelits heto teste avtomatik kkapvi\n\n"
-            "Patrastak e՞q skselu:",
+            "- Zamanakamidzoum avartvelitc heto teste avtomatik kapvi\n\n"
+            "Patrast eq?",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Sksеl Teste", callback_data="begin")]
+                [InlineKeyboardButton("Սկсел Tesте", callback_data="begin")]
             ])
         )
         return
 
-    await update.message.reply_text("Ogtag /start hramane test surpeldu hamar.")
+    await update.message.reply_text("Grel /start hramane test skselu hamar:")
 
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -231,11 +216,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             score = done_sess["score"]
             pct = round(score / TOTAL * 100)
             await q.edit_message_text(
-                "Duq ardеn hanjnel eq ays teste.\n\n"
-                "Zer ardyounke: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
+                "Ardеn hanjnel eq ays teste:\n\n"
+                "Zer ardyunkе: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
                 "Gnahatakan: " + grade_text(pct),
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Ardyunknery tesnel", callback_data="show_all_results")]
+                    [InlineKeyboardButton("Բоlor ardyunknere", callback_data="show_all_results")]
                 ])
             )
             return
@@ -250,7 +235,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         "UPDATE sessions SET finished=1, timed_out=1, finished_at=? WHERE id=?",
                         (datetime.now().isoformat(), s["id"])
                     )
-                await q.edit_message_text("Zhamanakamidzum e avartvatс. /start - tesnel ardyunky")
+                await q.edit_message_text("Zamanakе lrtsel e: Teste avartvel e:")
                 return
             qi = answered_count(s["id"])
             await send_question(q, qi, s["id"], s)
@@ -261,6 +246,10 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     elif d == "show_all_results":
         await show_all_results(q)
+
+    elif d.startswith("show_results_"):
+        sid = int(d.split("_")[-1])
+        await show_results(q, uid, sid)
 
 async def start_new_session(q, uid):
     with get_db() as c:
@@ -275,30 +264,22 @@ async def send_question(q, qi, sid, sess=None):
     if sess is None:
         with get_db() as c:
             sess = c.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
-    await q.edit_message_text(
-        make_question_text(qi, sess),
-        reply_markup=make_question_keyboard(qi)
-    )
+    await q.edit_message_text(make_question_text(qi, sess), reply_markup=make_question_keyboard(qi))
 
 async def process_answer(q, uid, qi, chosen):
     s = active_session(uid)
     if not s:
-        await q.edit_message_text("Niste chi gtnvel. /start")
+        await q.edit_message_text("Niste chi gtnvel: /start")
         return
     sid = s["id"]
 
-    # Check timeout
     if is_timed_out(s):
         with get_db() as c:
             c.execute(
                 "UPDATE sessions SET finished=1, timed_out=1, finished_at=? WHERE id=?",
                 (datetime.now().isoformat(), sid)
             )
-        await q.edit_message_text(
-            "Zhamanakamidzum e lrtsel!\n\n"
-            "Teste avtomatik kerpov avartvatс e.\n"
-            "/start - tesnel ardyunky"
-        )
+        await q.edit_message_text("Zamanakе lrtsel e: Teste avartvel e:")
         return
 
     with get_db() as c:
@@ -308,7 +289,7 @@ async def process_answer(q, uid, qi, chosen):
     if existing:
         qi2 = answered_count(sid)
         if qi2 >= TOTAL:
-            await finish_session(q, uid, sid)
+            await show_results(q, uid, sid)
         else:
             await send_question(q, qi2, sid, s)
         return
@@ -327,11 +308,10 @@ async def process_answer(q, uid, qi, chosen):
 
     next_qi = qi + 1
 
-    # Show feedback briefly then auto-advance
     if ok:
-        result_text = "Chtor e! (+1)\n\n"
+        result_text = "Ճishт e! (+1)\n\n"
     else:
-        result_text = "Skhal!\n\n"
+        result_text = "Skhаl!\n\n"
 
     for i, opt in enumerate(qdata["opts"]):
         if i == correct:
@@ -343,22 +323,19 @@ async def process_answer(q, uid, qi, chosen):
         result_text += prefix + LT[i] + ") " + opt + "\n"
 
     if not ok:
-        result_text += "\nChtort patasxane: " + LT[correct] + ") " + qdata["opts"][correct]
+        result_text += "\nChtort pataskhane: " + LT[correct] + ") " + qdata["opts"][correct]
 
     result_text += "\n\n" + progress_bar(next_qi, TOTAL) + " " + str(next_qi) + "/" + str(TOTAL)
 
     if next_qi >= TOTAL:
-        # Last question - show results button
         await q.edit_message_text(
             result_text,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Tesnel ardyunkner", callback_data="show_results_" + str(sid))]
+                [InlineKeyboardButton("Արдyounknere tesnel", callback_data="show_results_" + str(sid))]
             ])
         )
     else:
-        # Auto advance - show next question immediately
         await q.edit_message_text(result_text)
-        # Immediately send next question as new message
         import asyncio
         await asyncio.sleep(1.5)
         s_updated = active_session(uid)
@@ -368,12 +345,7 @@ async def process_answer(q, uid, qi, chosen):
                 reply_markup=make_question_keyboard(next_qi)
             )
 
-async def finish_session(q, uid, sid):
-    with get_db() as c:
-        s = c.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
-    await show_results(q, uid, sid, s)
-
-async def show_results(q, uid, sid, session=None):
+async def show_results(q, uid, sid):
     with get_db() as c:
         s = c.execute("SELECT * FROM sessions WHERE id=?", (sid,)).fetchone()
         c.execute(
@@ -388,7 +360,10 @@ async def show_results(q, uid, sid, session=None):
     score = s["score"]
     pct = round(score / TOTAL * 100)
     name = user["full_name"] if user else ""
-    timed = s["timed_out"] if "timed_out" in s.keys() else 0
+    try:
+        timed = s["timed_out"]
+    except:
+        timed = 0
 
     lec_stats = {}
     for lec in LECTURES:
@@ -403,9 +378,9 @@ async def show_results(q, uid, sid, session=None):
                 break
 
     text = name + "\n"
-    text += "TEST AVARTVATС E!\n"
+    text += "TEST AVARTVEL E!\n"
     if timed:
-        text += "(!!! Zhamanakamidzum e lrtsel !!!)\n"
+        text += "(Zamanakе lrtsel er)\n"
     text += "--------------------------------\n"
     text += "Ardyunk: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
     text += "Gnahatakan: " + grade_text(pct) + "\n"
@@ -429,7 +404,7 @@ async def show_results(q, uid, sid, session=None):
     await q.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Bnagrich ardyunkner", callback_data="show_all_results")]
+            [InlineKeyboardButton("Բоlоr masnakicneri ardyunknerе", callback_data="show_all_results")]
         ])
     )
 
@@ -438,36 +413,22 @@ async def show_all_results(q):
         results = c.execute("""
             SELECT u.full_name, s.score, s.timed_out,
                    ROUND(CAST(s.score AS REAL)/60*100) as pct
-            FROM sessions s
-            JOIN users u ON s.tg_id=u.tg_id
-            WHERE s.finished=1
-            ORDER BY s.score DESC
+            FROM sessions s JOIN users u ON s.tg_id=u.tg_id
+            WHERE s.finished=1 ORDER BY s.score DESC
         """).fetchall()
 
     if not results:
-        await q.edit_message_text("Depo voч mek chem avartvel teste.")
+        await q.edit_message_text("Depo voch okh chi avartvel tesте.")
         return
 
-    text = "BNAGRICH ARDYUNKNER\n"
+    text = "BNAGRCH ARDYUNKNER\n"
     text += "================================\n\n"
     for i, r in enumerate(results, 1):
-        timed = " (timeout)" if r["timed_out"] else ""
-        text += str(i) + ". " + r["full_name"] + timed + "\n"
+        timed_mark = " (zamanak)" if r["timed_out"] else ""
+        text += str(i) + ". " + r["full_name"] + timed_mark + "\n"
         text += "   " + str(r["score"]) + "/60 (" + str(int(r["pct"])) + "%) - " + grade_text(int(r["pct"])) + "\n\n"
 
     await q.edit_message_text(text)
-
-async def handle_results_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    q = update.callback_query
-    await q.answer()
-    d = q.data
-    uid = q.from_user.id
-
-    if d.startswith("show_results_"):
-        sid = int(d.split("_")[-1])
-        await show_results(q, uid, sid)
-    elif d == "show_all_results":
-        await show_all_results(q)
 
 async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     with get_db() as c:
@@ -486,11 +447,10 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = "VICHAKAGRUTYUNNER\n"
     text += "Grantsvats: " + str(users_n) + "\n"
     text += "Avartats testner: " + str(fin_n) + "\n"
-    text += "Mittlakan ardyunk: " + str(round(avg_row or 0)) + "%\n\n"
-    text += "TOP 30\n\n"
+    text += "Mittlakan ardyunk: " + str(round(avg_row or 0)) + "%\n\nTOP 30\n\n"
     for i, r in enumerate(top, 1):
-        timed = " (!)" if r["timed_out"] else ""
-        text += str(i) + ". " + r["full_name"] + timed + " - " + str(r["score"]) + "/60 (" + str(int(r["pct"])) + "%)\n"
+        t = " (!)" if r["timed_out"] else ""
+        text += str(i) + ". " + r["full_name"] + t + " - " + str(r["score"]) + "/60 (" + str(int(r["pct"])) + "%)\n"
     await update.message.reply_text(text)
 
 def load_token():
@@ -515,7 +475,6 @@ def main():
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("stats", cmd_stats))
-    app.add_handler(CallbackQueryHandler(handle_results_callback, pattern="^show_results_|^show_all_results$"))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
     log.info("Bot starting...")
