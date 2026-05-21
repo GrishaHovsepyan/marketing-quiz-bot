@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
 LECTURES = [
-    {"title": "Lekcija 4", "count": 10},
-    {"title": "Lekcija 5", "count": 10},
-    {"title": "Lekcija 6", "count": 10},
-    {"title": "Lekcija 7", "count": 10},
-    {"title": "Lekcija 8", "count": 10},
-    {"title": "Lekcija 9", "count": 10},
+    {"title": "Լեկցիա 4", "count": 10},
+    {"title": "Լեկցիա 5", "count": 10},
+    {"title": "Լեկցիա 6", "count": 10},
+    {"title": "Լեկցիա 7", "count": 10},
+    {"title": "Լեկցիա 8", "count": 10},
+    {"title": "Լեկցիա 9", "count": 10},
 ]
 
 ALL_QUESTIONS = [
