@@ -136,7 +136,7 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     (datetime.now().isoformat(), sess["id"])
                 )
             await update.message.reply_text(
-                "Ժամանակը լրացել է:\n\nՃest avtomatik kerpov avartvel e.",
+                "Ժամանակը լրացել է։\n\nԹեստն ավտոմատ կերպով ավարտվել է։",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("Արդյունքները տեսնել", callback_data="show_all_results")]
                 ])
@@ -146,25 +146,25 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if done < TOTAL:
             mins = time_remaining(sess) // 60
             await update.message.reply_text(
-                "Բarи veradarts!\n\n"
-                "Анаvarт test:\n"
+                "Բարի վերադարձ։\n\n"
+                "Անավարտ թեստ․\n"
                 + progress_bar(done, TOTAL) + " " + str(done) + "/" + str(TOTAL) + "\n"
-                "Մнum e: " + str(mins) + " rope",
+                "Մնում է՝ " + str(mins) + " րոպե",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Шаруnakel", callback_data="cont")],
+                    [InlineKeyboardButton("Շարունակել", callback_data="cont")],
                 ])
             )
             return
 
     waiting_for_name[tg_id] = True
     await update.message.reply_text(
-        "Բарi galust!\n\n"
-        "Маркетingayin Hagordaktsutyan Test\n"
+        "Բարի գալուստ։\n\n"
+        "Մարքեթինգային հաղորդակցության թեստ\n"
         "--------------------------------\n"
-        "6 lekcija | 60 harts | " + str(TIME_LIMIT_MINUTES) + " rope\n\n"
-        "Ushаdrutyun: Teste kareli e hanjnel MIAIN MEK ANGAM\n\n"
-        "Skselу naхord, kgrel Dzez anoun ev azganoun\n"
-        "(orinak: Ani Petrosyan):"
+        "6 դասախոսություն | 60 հարց | " + str(TIME_LIMIT_MINUTES) + " րոպե\n\n"
+        "Ուշադրություն․ թեստը կարելի է հանձնել ՄԻԱՅՆ ՄԵԿ ԱՆԳԱՄ։\n\n"
+        "Սկսելուց առաջ գրեք Ձեր անունը և ազգանունը։\n"
+        "Օրինակ՝ Անի Պետրոսյան։"
     )
 
 async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -176,8 +176,8 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parts = text_in.split()
         if len(parts) < 2:
             await update.message.reply_text(
-                "Khndrоum enk grel ANOUN EV AZGANOUN:\n"
-                "Orinak: Ani Petrosyan"
+                "Խնդրում ենք գրել ԱՆՈՒՆ ԵՎ ԱԶԳԱՆՈՒՆ․\n"
+                "Օրինակ՝ Անի Պետրոսյան"
             )
             return
 
@@ -190,19 +190,19 @@ async def handle_text(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         del waiting_for_name[tg_id]
 
         await update.message.reply_text(
-            "Shnorhakalutyun, " + full_name + "!\n\n"
-            "Ushadrutyun:\n"
-            "- Teste kareli e hanjnel miain mek angam\n"
-            "- Dzez kta " + str(TIME_LIMIT_MINUTES) + " rope\n"
-            "- Zamanakamidzoum avartvelitc heto teste avtomatik kapvi\n\n"
-            "Patrast eq?",
+            "Շնորհակալություն, " + full_name + "!\n\n"
+            "Ուշադրություն․\n"
+            "- Թեստը կարելի է հանձնել միայն մեկ անգամ։\n"
+            "- Ձեզ կտրվի " + str(TIME_LIMIT_MINUTES) + " րոպե\n"
+            "- Ժամանակը լրանալուց հետո թեստն ավտոմատ կավարտվի։\n\n"
+            "Պատրա՞ստ եք։",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Սկсел Tesте", callback_data="begin")]
+                [InlineKeyboardButton("Սկսել թեստը", callback_data="begin")]
             ])
         )
         return
 
-    await update.message.reply_text("Grel /start hramane test skselu hamar:")
+    await update.message.reply_text("Թեստը սկսելու համար գրեք /start հրամանը։")
 
 async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -216,11 +216,11 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             score = done_sess["score"]
             pct = round(score / TOTAL * 100)
             await q.edit_message_text(
-                "Ardеn hanjnel eq ays teste:\n\n"
-                "Zer ardyunkе: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
-                "Gnahatakan: " + grade_text(pct),
+                "Դուք արդեն հանձնել եք այս թեստը։\n\n"
+                "Ձեր արդյունքը՝ " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
+                "Գնահատական՝ " + grade_text(pct),
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("Բоlor ardyunknere", callback_data="show_all_results")]
+                    [InlineKeyboardButton("Բոլոր արդյունքները", callback_data="show_all_results")]
                 ])
             )
             return
@@ -235,7 +235,7 @@ async def handle_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         "UPDATE sessions SET finished=1, timed_out=1, finished_at=? WHERE id=?",
                         (datetime.now().isoformat(), s["id"])
                     )
-                await q.edit_message_text("Zamanakе lrtsel e: Teste avartvel e:")
+                await q.edit_message_text("Ժամանակը լրացել է։ Թեստն ավարտվել է։")
                 return
             qi = answered_count(s["id"])
             await send_question(q, qi, s["id"], s)
@@ -269,7 +269,7 @@ async def send_question(q, qi, sid, sess=None):
 async def process_answer(q, uid, qi, chosen):
     s = active_session(uid)
     if not s:
-        await q.edit_message_text("Niste chi gtnvel: /start")
+        await q.edit_message_text("Նիստը չի գտնվել։ Գրեք /start։")
         return
     sid = s["id"]
 
@@ -279,7 +279,7 @@ async def process_answer(q, uid, qi, chosen):
                 "UPDATE sessions SET finished=1, timed_out=1, finished_at=? WHERE id=?",
                 (datetime.now().isoformat(), sid)
             )
-        await q.edit_message_text("Zamanakе lrtsel e: Teste avartvel e:")
+        await q.edit_message_text("Ժամանակը լրացել է։ Թեստն ավարտվել է։")
         return
 
     with get_db() as c:
@@ -309,21 +309,21 @@ async def process_answer(q, uid, qi, chosen):
     next_qi = qi + 1
 
     if ok:
-        result_text = "Ճishт e! (+1)\n\n"
+        result_text = "Ճիշտ է։ (+1)\n\n"
     else:
-        result_text = "Skhаl!\n\n"
+        result_text = "Սխալ է։\n\n"
 
     for i, opt in enumerate(qdata["opts"]):
         if i == correct:
-            prefix = "[V] "
+            prefix = "✅ "
         elif i == chosen and not ok:
-            prefix = "[X] "
+            prefix = "❌ "
         else:
             prefix = "    "
         result_text += prefix + LT[i] + ") " + opt + "\n"
 
     if not ok:
-        result_text += "\nChtort pataskhane: " + LT[correct] + ") " + qdata["opts"][correct]
+        result_text += "\nՃիշտ պատասխանը՝ " + LT[correct] + ") " + qdata["opts"][correct]
 
     result_text += "\n\n" + progress_bar(next_qi, TOTAL) + " " + str(next_qi) + "/" + str(TOTAL)
 
@@ -331,7 +331,7 @@ async def process_answer(q, uid, qi, chosen):
         await q.edit_message_text(
             result_text,
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("Արдyounknere tesnel", callback_data="show_results_" + str(sid))]
+                [InlineKeyboardButton("Տեսնել արդյունքները", callback_data="show_results_" + str(sid))]
             ])
         )
     else:
@@ -378,12 +378,12 @@ async def show_results(q, uid, sid):
                 break
 
     text = name + "\n"
-    text += "TEST AVARTVEL E!\n"
+    text += "ԹԵՍՏՆ ԱՎԱՐՏՎԵԼ Է։\n"
     if timed:
-        text += "(Zamanakе lrtsel er)\n"
+        text += "(Ժամանակը լրացել էր)\n"
     text += "--------------------------------\n"
-    text += "Ardyunk: " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
-    text += "Gnahatakan: " + grade_text(pct) + "\n"
+    text += "Արդյունք՝ " + str(score) + "/" + str(TOTAL) + " (" + str(pct) + "%)\n"
+    text += "Գնահատական՝ " + grade_text(pct) + "\n"
     text += "--------------------------------\n\n"
 
     for lt, (c_ok, c_tot) in lec_stats.items():
@@ -393,18 +393,18 @@ async def show_results(q, uid, sid):
 
     text += "--------------------------------\n"
     if pct >= 90:
-        text += "Fantastik ardyunk!"
+        text += "Ֆանտաստիկ արդյունք։"
     elif pct >= 75:
-        text += "Lav ardyunk!"
+        text += "Լավ արդյունք։"
     elif pct >= 55:
-        text += "Bavar. Vor temanerе petk e krknel."
+        text += "Բավարար է։ Որոշ թեմաներ պետք է կրկնել։"
     else:
-        text += "Voch bav. Lekcijanerе petk e krknel."
+        text += "Ոչ բավարար է։ Դասախոսությունները պետք է կրկնել։"
 
     await q.edit_message_text(
         text,
         reply_markup=InlineKeyboardMarkup([
-            [InlineKeyboardButton("Բоlоr masnakicneri ardyunknerе", callback_data="show_all_results")]
+            [InlineKeyboardButton("Բոլոր մասնակիցների արդյունքները", callback_data="show_all_results")]
         ])
     )
 
@@ -418,13 +418,13 @@ async def show_all_results(q):
         """).fetchall()
 
     if not results:
-        await q.edit_message_text("Depo voch okh chi avartvel tesте.")
+        await q.edit_message_text("Դեռ ոչ ոք չի ավարտել թեստը։")
         return
 
-    text = "BNAGRCH ARDYUNKNER\n"
+    text = "ՄԱՍՆԱԿԻՑՆԵՐԻ ԱՐԴՅՈՒՆՔՆԵՐ\n"
     text += "================================\n\n"
     for i, r in enumerate(results, 1):
-        timed_mark = " (zamanak)" if r["timed_out"] else ""
+        timed_mark = " (ժամանակը լրացել է)" if r["timed_out"] else ""
         text += str(i) + ". " + r["full_name"] + timed_mark + "\n"
         text += "   " + str(r["score"]) + "/60 (" + str(int(r["pct"])) + "%) - " + grade_text(int(r["pct"])) + "\n\n"
 
@@ -444,10 +444,10 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             WHERE s.finished=1 ORDER BY s.score DESC LIMIT 30
         """).fetchall()
 
-    text = "VICHAKAGRUTYUNNER\n"
-    text += "Grantsvats: " + str(users_n) + "\n"
-    text += "Avartats testner: " + str(fin_n) + "\n"
-    text += "Mittlakan ardyunk: " + str(round(avg_row or 0)) + "%\n\nTOP 30\n\n"
+    text = "ՎԻՃԱԿԱԳՐՈՒԹՅՈՒՆ\n"
+    text += "Գրանցվածներ՝ " + str(users_n) + "\n"
+    text += "Ավարտված թեստեր՝ " + str(fin_n) + "\n"
+    text += "Միջին արդյունք՝ " + str(round(avg_row or 0)) + "%\n\nԼԱՎԱԳՈՒՅՆ 30\n\n"
     for i, r in enumerate(top, 1):
         t = " (!)" if r["timed_out"] else ""
         text += str(i) + ". " + r["full_name"] + t + " - " + str(r["score"]) + "/60 (" + str(int(r["pct"])) + "%)\n"
@@ -468,16 +468,16 @@ def load_token():
 def main():
     token = load_token()
     if not token:
-        print("BOT_TOKEN chi gtnvel!")
+        print("BOT_TOKEN-ը չի գտնվել։")
         return
     init_db()
-    log.info("DB OK | %d harts", TOTAL)
+    log.info("DB OK | %d հարց", TOTAL)
     app = Application.builder().token(token).build()
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("stats", cmd_stats))
     app.add_handler(CallbackQueryHandler(handle_callback))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
-    log.info("Bot starting...")
+    log.info("Bot-ը միանում է...")
     app.run_polling(drop_pending_updates=True)
 
 if __name__ == "__main__":
